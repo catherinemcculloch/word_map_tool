@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Word Map Workshop Tool</title>
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    width: 100%;
+    height: 100%;
+    background: #f5f5f5;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+
+  #stage {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+  }
+
+  #webgl-container, #css3d-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  #css3d-container {
+    pointer-events: none;
+  }
+
+  .word-label {
+    pointer-events: auto;
+    cursor: grab;
+    user-select: none;
+    color: #1e5fe1;
+    background: rgba(150, 175, 232, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 18px;
+    font-weight: 600;
+    white-space: nowrap;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  }
+
+  .word-label.dragging {
+    cursor: grabbing;
+  }
+
+  .word-label.selected {
+    border-color: #6cf0ff;
+    box-shadow: 0 0 12px rgba(108, 240, 255, 0.7);
+  }
+
+  .axis-label {
+    pointer-events: none;
+    user-select: none;
+    color: #8da3c2;
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: 1px;
+  }
+
+  #toolbar {
+    position: absolute;
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 8px;
+    z-index: 10;
+  }
+
+  #word-input {
+    width: 220px;
+    padding: 10px 12px;
+    border-radius: 6px;
+    border: 1px solid #3a4356;
+    background: #1a1f2b;
+    color: #f4f6fa;
+    font-size: 15px;
+    outline: none;
+  }
+
+  #word-input::placeholder {
+    color: #7b8497;
+  }
+
+  button {
+    padding: 10px 14px;
+    border-radius: 6px;
+    border: 1px solid #3a4356;
+    background: #2a3140;
+    color: #f4f6fa;
+    font-size: 14px;
+    cursor: pointer;
+  }
+
+  button:hover {
+    background: #384154;
+  }
+
+  #download-btn {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    z-index: 10;
+  }
+
+  #help {
+    position: absolute;
+    bottom: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: #7b8497;
+    font-size: 12px;
+    z-index: 10;
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+
+<div id="stage">
+  <div id="webgl-container"></div>
+  <div id="css3d-container"></div>
+</div>
+
+<div id="toolbar">
+  <input id="word-input" type="text" placeholder="Type words or a sentence, press Enter" autocomplete="off">
+</div>
+<button id="download-btn">Download Screenshot</button>
+<div id="help">Drag empty space to orbit &middot; scroll to zoom &middot; drag a word to move it &middot; double-click two words to connect them</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { CSS3DRenderer, CSS3DObject } from 'three/addons/renderers/CSS3DRenderer.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+(function () {
+  const stage = document.getElementById('stage');
+  const webglContainer = document.getElementById('webgl-container');
+  const css3dContainer = document.getElementById('css3d-container');
+  const wordInput = document.getElementById('word-input');
+  const downloadBtn = document.getElementById('download-btn');
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 5000);
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(window.devicePixelRatio);
+  webglContainer.appendChild(renderer.domElement);
+
+  const cssRenderer = new CSS3DRenderer();
+  cssRenderer.setSize(window.innerWidth, window.innerHeight);
+  css3dContainer.appendChild(cssRenderer.domElement);
+
+  // Box spans [0, BOX_SIZE] on every axis, so (0,0,0) is the corner where the
+  // floor and two walls meet and the visible coordinate space is the positive octant.
+  const BOX_SIZE = 900;
+  const boxCenter = new THREE.Vector3(BOX_SIZE / 2, BOX_SIZE / 2, BOX_SIZE / 2);
+
+  camera.position.set(boxCenter.x + 400, boxCenter.y + 300, boxCenter.z + 1000);
+
+  const controls = new OrbitControls(camera, renderer.domElement);
+  controls.target.copy(boxCenter);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.1;
+  controls.screenSpacePanning = true;
+  controls.update();
+
+  scene.add(new THREE.AmbientLight(0xffffff, 1));
+
+  // --- Coordinate-system backdrop (floor + two walls, grid + box edges + X/Y/Z edge labels) ---
+  (function buildBackdrop() {
+    const gridDivisions = 10;
+    const backdrop = new THREE.Group();
+
+    const panelMaterial = new THREE.MeshBasicMaterial({
+      color: 0x6cb8ff,
+      transparent: true,
+      opacity: 0.05,
+      side: THREE.DoubleSide,
+      depthWrite: false
+    });
+
+    function makeGrid() {
+      const grid = new THREE.GridHelper(BOX_SIZE, gridDivisions, 0x4a5568, 0x2e3646);
+      grid.material.transparent = true;
+      grid.material.opacity = 0.35;
+      return grid;
+    }
+
+    // Floor (XZ plane) at y = 0
+    const floorGrid = makeGrid();
+    floorGrid.position.set(BOX_SIZE / 2, 0, BOX_SIZE / 2);
+    backdrop.add(floorGrid);
+    const floorPanel = new THREE.Mesh(new THREE.PlaneGeometry(BOX_SIZE, BOX_SIZE), panelMaterial);
+    floorPanel.rotation.x = -Math.PI / 2;
+    floorPanel.position.set(BOX_SIZE / 2, 0, BOX_SIZE / 2);
+    backdrop.add(floorPanel);
+
+    // Back wall (XY plane) at z = 0
+    const backGrid = makeGrid();
+    backGrid.rotation.x = Math.PI / 2;
+    backGrid.position.set(BOX_SIZE / 2, BOX_SIZE / 2, 0);
+    backdrop.add(backGrid);
+    const backPanel = new THREE.Mesh(new THREE.PlaneGeometry(BOX_SIZE, BOX_SIZE), panelMaterial);
+    backPanel.position.set(BOX_SIZE / 2, BOX_SIZE / 2, 0);
+    backdrop.add(backPanel);
+
+    // Left wall (YZ plane) at x = 0
+    const leftGrid = makeGrid();
+    leftGrid.rotation.z = Math.PI / 2;
+    leftGrid.position.set(0, BOX_SIZE / 2, BOX_SIZE / 2);
+    backdrop.add(leftGrid);
+    const leftPanel = new THREE.Mesh(new THREE.PlaneGeometry(BOX_SIZE, BOX_SIZE), panelMaterial);
+    leftPanel.rotation.y = Math.PI / 2;
+    leftPanel.position.set(0, BOX_SIZE / 2, BOX_SIZE / 2);
+    backdrop.add(leftPanel);
+
+    // Bounding box edges
+    const edges = new THREE.EdgesGeometry(new THREE.BoxGeometry(BOX_SIZE, BOX_SIZE, BOX_SIZE));
+    const boxLines = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x3a4356, transparent: true, opacity: 0.5 }));
+    boxLines.position.copy(boxCenter);
+    backdrop.add(boxLines);
+
+    // X/Y/Z labels on the box's own edges
+    function addLabel(text, position, className) {
+      const div = document.createElement('div');
+      div.className = className;
+      div.textContent = text;
+      const obj = new CSS3DObject(div);
+      obj.position.copy(position);
+      backdrop.add(obj);
+    }
+    // Vertical edge where back wall and left wall meet (x=0, z=0)
+    addLabel('Z', new THREE.Vector3(0, BOX_SIZE + 20, 0), 'axis-label');
+    // Bottom edge of the left wall (x=0, y=0)
+    addLabel('Y', new THREE.Vector3(0, 0, BOX_SIZE + 20), 'axis-label');
+    // Bottom edge of the back wall (z=0, y=0)
+    addLabel('X', new THREE.Vector3(BOX_SIZE + 20, 0, 0), 'axis-label');
+
+    scene.add(backdrop);
+  })();
+
+  const linesGroup = new THREE.Group();
+  scene.add(linesGroup);
+
+  let words = [];
+  let connections = [];
+  let wordIdCounter = 0;
+  let selectedWord = null;
+
+  function randomPosition() {
+    const margin = 60;
+    const span = BOX_SIZE - margin * 2;
+    return new THREE.Vector3(
+      margin + Math.random() * span,
+      margin + Math.random() * span,
+      margin + Math.random() * span
+    );
+  }
+
+  function createWord(text, position) {
+    const div = document.createElement('div');
+    div.className = 'word-label';
+    div.textContent = text;
+
+    const cssObject = new CSS3DObject(div);
+    cssObject.position.copy(position);
+    scene.add(cssObject);
+
+    const wordObj = {
+      id: wordIdCounter++,
+      text: text,
+      position: position,
+      cssObject: cssObject,
+      div: div
+    };
+
+    div.addEventListener('pointerdown', (e) => onWordPointerDown(e, wordObj));
+    div.addEventListener('dblclick', (e) => {
+      e.stopPropagation();
+      onWordDoubleClick(wordObj);
+    });
+
+    words.push(wordObj);
+    return wordObj;
+  }
+
+  function onWordDoubleClick(wordObj) {
+    if (!selectedWord) {
+      selectedWord = wordObj;
+      wordObj.div.classList.add('selected');
+      return;
+    }
+    if (selectedWord.id === wordObj.id) {
+      selectedWord.div.classList.remove('selected');
+      selectedWord = null;
+      return;
+    }
+    createConnection(selectedWord, wordObj);
+    selectedWord.div.classList.remove('selected');
+    selectedWord = null;
+  }
+
+  function createConnection(a, b) {
+    const exists = connections.some(c =>
+      (c.a.id === a.id && c.b.id === b.id) || (c.a.id === b.id && c.b.id === a.id)
+    );
+    if (exists) return;
+
+    const geometry = new THREE.BufferGeometry().setFromPoints([a.position, b.position]);
+    const material = new THREE.LineBasicMaterial({ color: 0x800080, linewidth: 10 });
+    const line = new THREE.Line(geometry, material);
+    linesGroup.add(line);
+
+    connections.push({ a, b, line });
+  }
+
+  function updateConnections() {
+    connections.forEach(conn => {
+      const positions = conn.line.geometry.attributes.position;
+      positions.setXYZ(0, conn.a.position.x, conn.a.position.y, conn.a.position.z);
+      positions.setXYZ(1, conn.b.position.x, conn.b.position.y, conn.b.position.z);
+      positions.needsUpdate = true;
+    });
+  }
+
+  // --- Dragging words ---
+  let dragState = null;
+  const dragPlane = new THREE.Plane();
+  const raycaster = new THREE.Raycaster();
+  const pointerNDC = new THREE.Vector2();
+  const planeIntersectPoint = new THREE.Vector3();
+
+  function onWordPointerDown(e, wordObj) {
+    e.preventDefault();
+    e.stopPropagation();
+    controls.enabled = false;
+    wordObj.div.classList.add('dragging');
+
+    const cameraDir = new THREE.Vector3();
+    camera.getWorldDirection(cameraDir);
+    dragPlane.setFromNormalAndCoplanarPoint(cameraDir, wordObj.position);
+
+    dragState = { wordObj };
+
+    window.addEventListener('pointermove', onDragMove);
+    window.addEventListener('pointerup', onDragEnd);
+  }
+
+  function setPointerNDC(e) {
+    const rect = cssRenderer.domElement.getBoundingClientRect();
+    pointerNDC.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+    pointerNDC.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+  }
+
+  function onDragMove(e) {
+    if (!dragState) return;
+    setPointerNDC(e);
+    raycaster.setFromCamera(pointerNDC, camera);
+    if (raycaster.ray.intersectPlane(dragPlane, planeIntersectPoint)) {
+      dragState.wordObj.position.copy(planeIntersectPoint);
+      dragState.wordObj.cssObject.position.copy(planeIntersectPoint);
+    }
+  }
+
+  function onDragEnd() {
+    if (dragState) {
+      dragState.wordObj.div.classList.remove('dragging');
+    }
+    dragState = null;
+    controls.enabled = true;
+    window.removeEventListener('pointermove', onDragMove);
+    window.removeEventListener('pointerup', onDragEnd);
+  }
+
+  // --- Add word(s) via input ---
+  wordInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      const tokens = wordInput.value
+        .split(/\s+/)
+        .map(t => t.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, ''))
+        .filter(t => t.length > 0);
+      tokens.forEach(token => createWord(token, randomPosition()));
+      wordInput.value = '';
+    }
+  });
+
+  // --- Screenshot download ---
+  downloadBtn.addEventListener('click', () => {
+    html2canvas(stage, { backgroundColor: '#0c0f14' }).then(canvas => {
+      const link = document.createElement('a');
+      link.download = 'word-map.png';
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    });
+  });
+
+  // --- Resize ---
+  window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    cssRenderer.setSize(window.innerWidth, window.innerHeight);
+  });
+
+  // --- Render loop ---
+  function animate() {
+    requestAnimationFrame(animate);
+    controls.update();
+    updateConnections();
+    renderer.render(scene, camera);
+    cssRenderer.render(scene, camera);
+  }
+  animate();
+})();
+</script>
+
+</body>
+</html>
