@@ -1,91 +1,67 @@
-# Backdrop cleanup — Workshop Word-Map Tool
+# Rebuild as a flat 2D word-cloud board — Workshop Word-Map Tool
 
 ## Context
-The coordinate-system backdrop was just added, but the user wants it cleaned up and re-grounded: drop the redundant center axis lines and numeric tick labels, relabel the box's own edges as X/Y/Z, make the box noticeably bigger (larger than a 13" laptop screen), reposition the geometry so the origin `(0,0,0)` is the actual corner where the floor and two walls meet (currently the origin is the box's *center*, with the visible corner sitting off at `(-axisExtent, -axisExtent, -axisExtent)`), and start with a completely empty scene (no seeded "idea" word). Putting the origin at the corner means the visible coordinate space is the positive octant only — all x/y/z values in the box are ≥ 0.
+User testing showed the true-3D Three.js scene (orbit/zoom camera, drag-on-a-camera-facing-plane) is too complicated for the tool's general-population audience. The user wants a full rework, captured in `changes7_20_26.md`, that replaces the 3D interaction model with a simple flat 2D drag-and-drop board (styled with a perspective-floor backdrop for visual depth only, no real 3D math), backed by a fixed/preset word bank instead of free-text entry, with a welcome overlay, a redesigned right-hand directions sidebar, a reset control, duplicate-prevention, and an updated screenshot action that also opens a pre-filled email draft. This is effectively a rewrite of `index.html`; nothing else in the repo changes.
 
-## Changes (all in the `buildBackdrop` IIFE and nearby code in `index.html`)
-1. **Reposition geometry to the positive octant**: replace the current symmetric `[-axisExtent, axisExtent]` placement with `[0, boxSize]` placement, where `boxSize = 1040` (double the old full edge length of 520·2=1040... i.e. same "twice as large" sizing as before, just relocated):
-   - Floor (XZ plane) moves from `y = -axisExtent` to `y = 0`, and its grid/panel center shifts to `(boxSize/2, 0, boxSize/2)` so it spans `x:[0,boxSize], z:[0,boxSize]`
-   - Back wall (XY plane) moves from `z = -axisExtent` to `z = 0`, center shifts to `(boxSize/2, boxSize/2, 0)`, spanning `x:[0,boxSize], y:[0,boxSize]`
-   - Left wall (YZ plane) moves from `x = -axisExtent` to `x = 0`, center shifts to `(0, boxSize/2, boxSize/2)`, spanning `y:[0,boxSize], z:[0,boxSize]`
-   - Box-edge wireframe ([index.html:241-242](index.html#L241-L242)): build from a `BoxGeometry(boxSize, boxSize, boxSize)` positioned at `(boxSize/2, boxSize/2, boxSize/2)` instead of centered at the origin
-2. **Reposition the camera to match**: the camera/`OrbitControls` currently orbit around `(0,0,0)` (old box center). Since the box center moves to `(boxSize/2, boxSize/2, boxSize/2)`, set `controls.target` to that point and shift the camera's initial position by the same offset (old camera was `(0,0,600)` relative to target `(0,0,0)`; new camera position is `target + (0,0,600)`) so the initial framing looks the same as today, just anchored to the new corner-origin box.
-3. **Remove center axis lines**: delete the `axisLine()` helper and its three `backdrop.add(axisLine(...))` calls ([index.html:244-252](index.html#L244-L252)) — no more floating lines through the origin.
-4. **Remove numeric tick labels**: delete the `[-200, -100, 100, 200].forEach(...)` block ([index.html:263-267](index.html#L263-L267)) entirely. Keep the `addLabel` helper since it's still used for the X/Y/Z letters.
-5. **Relabel box edges as X/Y/Z** ([index.html:268-270](index.html#L268-L270)), positioned just beyond the far end of the box's own edges (matching the matplotlib reference's corner-of-a-box look), now in positive-octant coordinates:
-   - `Z` near the top of the vertical edge where the back wall and left wall meet (`x=0, z=0`, just above `y=boxSize`)
-   - `X` beyond the far end of the bottom edge of the left wall (`x=0, y=0`, just beyond `z=boxSize`)
-   - `Y` beyond the far end of the bottom edge of the back wall (`z=0, y=0`, just beyond `x=boxSize`)
-6. **Spawn words inside the positive-octant box**: rewrite `randomPosition()` ([index.html:283-289](index.html#L283-L289)) to return random coordinates within `[margin, boxSize - margin]` for x, y, and z (e.g. `margin ≈ 60`) instead of the old symmetric `±` range — so words land inside the visible box instead of around the old centered origin.
-7. **Remove the seeded starting word**: delete `createWord('idea', new THREE.Vector3(0, 0, 0));` ([index.html:345](index.html#L345)) so the scene starts with just the backdrop and no words. (Note: `(0,0,0)` is now the box's corner, not its center, so this position would no longer make sense as a "centered" seed anyway.)
+## Clarified decisions (from user)
+1. **Remove Three.js/CSS3D/OrbitControls entirely.** Rebuild the board as plain HTML/CSS with SVG for connector lines. No WebGL, no camera, no 3D drag-plane raycasting.
+2. **Visual style**: keep a stylized "floor grid receding into the distance" backdrop — a flat CSS-drawn perspective floor (gradient/converging lines), evoking the old coordinate-box aesthetic — sitting behind the flat 2D word board.
+3. **Word bank**: fixed placeholder list of sample words (clearly marked as a single array constant near the top of the script for the user to swap later), rendered as a vertical column on the left. Words drag from the bank onto the board.
+4. **Duplicates**: handled two ways — (a) the placeholder source array itself contains no duplicate entries, and (b) once a word is dragged from the bank onto the board it is removed from the bank (visually and from the draggable pool), so it can only be placed once. Reset returns all placed words back to the bank in their original order.
+5. **Input box removed.** No free-text word entry anymore.
+6. **Directions sidebar**: moves to the right side of the screen, in a simple bordered box, containing the item-9 directions text verbatim, plus an added line clarifying: "You can double click on each word to create a line between them. This line represents the sentence you are making."
+7. **Reset button**: sits directly under the directions box on the right side. Clears the board (removes all placed words and all connections) and repopulates the left-hand bank with the full original word list.
+8. **Welcome overlay**: full-screen overlay shown on load with a purpose message drafted from the item-9 directions text, and an "Enter" button that dismisses it (adds a `hidden`/removed state, doesn't reappear until page reload).
+9. **Double-click-to-connect** behavior is preserved, adapted to 2D: double-click one placed word, then double-click a second, draws an SVG line between their board positions; positions update live as either word is dragged.
+10. **Screenshot button**: still captures the board via `html2canvas` and triggers the PNG download (as today), and additionally opens a `mailto:` link with a placeholder recipient address (clearly marked as a `TO_DO` constant), a pre-filled subject/body reminding the user to attach the just-downloaded PNG. True automatic email-with-attachment isn't possible from a static page without a backend/service, so this is the documented stand-in.
 
-## Files
-- `index.html` — all changes are localized to the `buildBackdrop` IIFE, the camera/`controls.target` setup just above it, `randomPosition()`, and the seed-word call at the bottom of the script
+## Implementation plan (all in `index.html`)
 
-## Verification
-- Reload the page: confirm no "idea" word appears on load, only the empty grid backdrop, framed the same way it is today (just re-anchored)
-- Confirm the box visibly extends beyond the viewport on a normal laptop-sized window
-- Confirm only three small letters (X, Y, Z) appear at the box edges, no floating center lines, no numeric tick labels
-- Type a few words and confirm they all spawn inside the visible box (positive coordinates), spread across a good portion of it
-- Re-run the existing Playwright smoke checks (orbit, zoom, drag, connect, multi-word input, screenshot download) to confirm no regressions
+### Structure
+- Delete the Three.js `<script type="importmap">` and the `three`/`CSS3DRenderer`/`OrbitControls` imports/usage entirely. Keep `html2canvas` (still needed for the screenshot).
+- Replace `#stage` / `#webgl-container` / `#css3d-container` with a simpler layout:
+  - `#welcome-overlay` — full-screen overlay, purpose text + "Enter" button (top z-index, removed/hidden on click).
+  - `#app` — flex/grid layout: `#word-bank` (left vertical column), `#board` (center, flex-grow, houses the perspective-floor backdrop + placed word chips + an absolutely-positioned `<svg>` overlay for connector lines), `#sidebar` (right column: directions box + reset button).
+- Word chips become plain `<div class="word-chip">` elements positioned with `left`/`top` (px, relative to `#board`) instead of `THREE.Vector3` + `CSS3DObject`.
 
----
+### Word bank & placement
+- `const WORD_BANK = [...]` — placeholder list (deduped) defined once near the top of the script.
+- Render each bank word as a draggable `.word-chip` in `#word-bank`.
+- Use native HTML5 drag-and-drop (`draggable="true"`, `dragstart`/`dragover`/`drop` on `#board`) or pointer-based drag (consistent with the existing pointer-event drag code the user already has patterns for) — reuse the existing `onWordPointerDown`/`onDragMove`/`onDragEnd` pointer-event approach from the current implementation, adapted to operate on 2D `left/top` CSS coordinates instead of a 3D raycast plane, since that pattern is already proven for smooth chip dragging in this codebase.
+- On drop onto `#board`, remove the word's entry from `WORD_BANK`'s live/remaining list (re-render `#word-bank` without it) and create a placed word chip on the board at the drop position.
+- Track state as `placedWords` (analogous to today's `words` array: `{ id, text, x, y, div }`) and `remainingBank` (words not yet placed).
 
-# Fix orbit/zoom and support multi-word input — Workshop Word-Map Tool
+### Connections
+- Reuse the existing double-click selection logic (`onWordDoubleClick`/`selectedWord`) unchanged in spirit; instead of a `THREE.Line`, draw/update an SVG `<line>` inside the board's overlay `<svg>`, with `x1/y1/x2/y2` set from each connected word's current `x/y` and refreshed on drag (no more per-frame `animate()` loop needed — update the line directly in the drag handler instead of a render loop, since there's no continuous camera to redraw).
+- `connections` array becomes `{ a, b, lineEl }`.
 
-## Context
-The workshop tool (`index.html`) was previously built and verified, but the user found two issues while using it:
-1. Dragging empty space doesn't orbit the camera, and scrolling doesn't zoom.
-2. The text input only accepts a single word at a time; the user wants to paste/type a word cluster or full sentence and have it parsed into separate floating words.
+### Reset
+- Reset button (under the directions box): clears `placedWords` and `connections` (remove their DOM/SVG elements), restores `remainingBank` to the full deduped `WORD_BANK`, re-renders `#word-bank`.
 
-## Fix 1: Orbit/zoom not working
-Root cause (confirmed by reading the current code): `OrbitControls` is bound to `cssRenderer.domElement` ([index.html:167](index.html#L167)). That element lives inside `#css3d-container`, which has `pointer-events: none` in CSS ([index.html:32-34](index.html#L32-L34)) so that only `.word-label` children (explicitly `pointer-events: auto`) capture clicks, letting clicks on empty space fall through to the WebGL canvas below. Because `pointer-events: none` is inherited, the CSS3D renderer's own root element never receives pointerdown/wheel events at all, so `OrbitControls` — listening on that element — never sees the drag or scroll gestures.
+### Directions sidebar & welcome overlay
+- Directions box: bordered container with the exact text from item 9, plus the added double-click/sentence-line clarification sentence appended.
+- Welcome overlay: headline + short purpose paragraph adapted from the same item-9 text, "Enter" button removes/hides the overlay.
 
-**Fix**: construct `OrbitControls` against `renderer.domElement` (the WebGL canvas, which has no `pointer-events: none`) instead of `cssRenderer.domElement`. Clicks on a word label will still be intercepted first (labels are above in z-order and have `pointer-events: auto`, plus `onWordPointerDown` already calls `stopPropagation`), so word-dragging continues to take priority over orbiting.
+### Screenshot / email
+- Keep `html2canvas(board-or-app, {...}).then(...)` to produce and download the PNG as today.
+- Immediately after triggering the download, also set `window.location.href` (or open) a `mailto:PLACEHOLDER_EMAIL@example.com?subject=...&body=...` link — `PLACEHOLDER_EMAIL` defined as a clearly-named constant near the top of the script for the user to fill in later.
 
-## Fix 2: Multi-word / sentence input
-Currently the Enter handler ([index.html:306-314](index.html#L306-L314)) takes the whole input value as one word. Change it to split the input text into individual word tokens (split on whitespace, strip surrounding punctuation per token, filter empty results) and call the existing `createWord(text, randomPosition())` once per token — so typing "blue sky thinking" or a full sentence creates one floating word node per word, each independently placed via the existing `randomPosition()` helper (no new clustering logic needed).
-
-## Files
-- `index.html` — both fixes are localized: the `OrbitControls` constructor call and the Enter-key handler
-
-## Verification
-- Reload the page, confirm dragging on empty space now orbits the camera and scroll wheel zooms in/out, while dragging directly on a word still moves just that word (not the camera)
-- Type a multi-word phrase or sentence into the input and press Enter; confirm each word appears as its own separate floating label (not one label containing the whole sentence)
-- Re-run the existing Playwright-based smoke check (drag word, orbit, zoom, connect two words, download screenshot) to confirm no regressions
-
----
-
-# (Original) Workshop Word-Map Tool — single-file 3D word board
-
-## Context
-The user wants a standalone workshop tool: a single HTML file deployable to GitHub Pages (no build step, no server) where participants type words that float in a 3D scene, drag them around, double-click two words to draw a connecting line between them, and export a screenshot of the resulting word map. The repo (`word_map_tool`) is currently empty, so this is a greenfield build.
-
-## Approach
-Single `index.html` file using **Three.js** (loaded via CDN, no bundler) for the 3D scene, with **CSS3DRenderer** to render word labels as real DOM elements positioned in 3D space (crisp text, easy hit-testing for drag/double-click via native DOM events). Connection lines are drawn in a separate WebGL layer (`THREE.Line`) that tracks the 3D positions of the connected word objects every frame. `OrbitControls` (also from the Three.js examples CDN) provides camera orbit/zoom/pan, distinguished from word-dragging by checking whether the mouse-down target is a word label vs. empty canvas.
-
-Screenshots: since the visible result is a composite of a WebGL `<canvas>` (lines) and an HTML/CSS3D overlay (words), use **html2canvas** (CDN) to rasterize the whole container div into one image for download — this avoids losing the text labels that a plain `canvas.toDataURL()` would miss.
-
-## Structure of index.html
-- `<head>`: title, minimal CSS (full-viewport canvas container, styled `.word-label` divs, fixed-position input bar, download button)
-- CDN script tags: `three.module.js` (or three.min.js UMD build), `CSS3DRenderer.js`, `OrbitControls.js`, `html2canvas.min.js`
-- `<body>`:
-  - Fixed top/bottom bar: text `<input>` + "Add word" affordance (Enter to submit)
-  - A "Download Screenshot" button
-  - Two stacked full-screen containers: one holding the WebGL renderer's canvas (for lines), one holding the CSS3DRenderer's DOM output (for word labels) — same camera, same render loop, so they stay perfectly aligned
-- `<script type="module">` (or plain script) containing:
-  1. **Scene setup**: `THREE.Scene`, `PerspectiveCamera`, `WebGLRenderer` (transparent background) for lines, `CSS3DRenderer` for labels, `OrbitControls` bound to the camera
-  2. **Word model**: array of `{ id, text, position: THREE.Vector3, cssObject (CSS3DObject wrapping a div) }`
-  3. **Add word**: on Enter in the input, create a new word at a random position near the camera's focus point, create its `CSS3DObject`, add to scene + word list
-  4. **Drag word**: pointerdown on a `.word-label` div starts a drag mode that disables `OrbitControls` for that gesture; pointermove projects mouse to a plane facing the camera (or uses raycasting against an invisible plane) to update the word's `THREE.Vector3`; pointerup ends drag and re-enables OrbitControls
-  5. **Connect words**: dblclick on a `.word-label` selects it as "pending connection source" (visual highlight); dblclick on a second, different word creates a `THREE.Line` (or `Line2` for thicker lines) between the two words' positions, stored in a `connections` array as `{ a: wordId, b: wordId, line: THREE.Line }`
-  6. **Render loop**: `requestAnimationFrame` — update each connection line's vertex positions from its two words' current `position`, render both the WebGL scene and the CSS3D scene
-  7. **Screenshot/export**: button click runs `html2canvas` on the shared parent container, then triggers a download via a temporary `<a>` with the resulting data URL (`download="word-map.png"`)
+### CSS
+- New `.word-chip` styling reused/adapted from today's `.word-label`.
+- New perspective-floor backdrop: CSS gradient + repeating linear-gradient "grid" lines with a `perspective`/`transform: rotateX(...)` on a floor `<div>` behind the board, purely visual (no interaction tied to it).
+- `#sidebar` directions box: simple border, padding, matches existing dark theme palette (`#1a1f2b`/`#3a4356`/etc. already used).
+- Remove now-unused `.axis-label` CSS (no more 3D axis labels) and any WebGL/CSS3D-container-specific rules (`pointer-events: none` layering trick no longer needed since there's no separate WebGL canvas underneath).
 
 ## Files
-- `index.html` — everything (markup, styles, script) in one file, per the user's deployment requirement
+- `index.html` — entire rewrite of the script/markup/CSS as described above. `CLAUDE.md` and `PLAN.md` will need a follow-up update after implementation to describe the new 2D architecture instead of the retired Three.js one (not done as part of this pass unless requested).
+- All files created or modified for this task (including any verification screenshots saved for review) go in `/Users/catherine/Documents/GitHub/word_map_tool/`, not in `/tmp` or the scratchpad — this repo folder is the single source of truth for this project.
 
 ## Verification
-- Open `index.html` directly in a browser (no server needed, or use a quick `python3 -m http.server` for CDN/module loading if `file://` CORS issues arise)
-- Manually test: type several words and confirm they appear floating in 3D; drag a word and confirm it moves and stays moved; orbit/zoom/pan the camera on empty space; double-click two different words and confirm a line is drawn and follows both endpoints when either word is dragged or the camera moves; click "Download Screenshot" and confirm a PNG downloads showing both the words and the connecting lines
-- Confirm the page works when served as a GitHub Pages static site (just push `index.html` to the repo root or `/docs`, no build artifacts needed)
+- Serve locally (`python3 -m http.server 8765`) and load the page: confirm the welcome overlay appears first, "Enter" dismisses it, and the board/bank/sidebar are visible underneath.
+- Confirm the word bank shows the placeholder list in a left column, directions text + reset button appear in a bordered right sidebar, and no text input box exists anywhere.
+- Drag several words from the bank onto the board; confirm each disappears from the bank once placed and appears on the board at the drop location.
+- Confirm a word already placed cannot be dragged again (it's gone from the bank).
+- Double-click two placed words; confirm an SVG line is drawn between them and follows both words when either is dragged.
+- Click Reset; confirm the board and connections clear and all words return to the bank.
+- Click the screenshot button; confirm a PNG downloads (showing chips + connector lines) and a `mailto:` compose window/link is triggered with the placeholder address.
+- Re-check no console errors via a Playwright pass (page load, welcome dismiss, drag-to-board, connect, reset, screenshot) since this is a full rewrite with no existing automated tests.

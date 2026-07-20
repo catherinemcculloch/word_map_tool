@@ -11,29 +11,151 @@
     overflow: hidden;
     width: 100%;
     height: 100%;
-    background: #f5f5f5;
+    background: #0c0f14;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    color: #f4f6fa;
   }
 
-  #stage {
-    position: relative;
+  /* --- Welcome overlay --- */
+  #welcome-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    background: rgba(8, 10, 14, 0.96);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  #welcome-overlay.hidden {
+    display: none;
+  }
+
+  #welcome-box {
+    max-width: 560px;
+    margin: 24px;
+    padding: 32px 36px;
+    background: #1a1f2b;
+    border: 1px solid #3a4356;
+    border-radius: 10px;
+    text-align: center;
+  }
+
+  #welcome-box h1 {
+    margin: 0 0 16px;
+    font-size: 24px;
+  }
+
+  #welcome-box p {
+    color: #c4cbdb;
+    line-height: 1.5;
+    margin: 0 0 24px;
+    text-align: left;
+    white-space: pre-line;
+  }
+
+  #welcome-enter-btn {
+    padding: 10px 28px;
+    font-size: 15px;
+  }
+
+  /* --- Layout --- */
+  #app {
+    display: flex;
     width: 100vw;
     height: 100vh;
   }
 
-  #webgl-container, #css3d-container {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
+  #word-bank {
+    width: 180px;
+    flex-shrink: 0;
+    overflow-y: auto;
+    padding: 16px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    align-items: center;
+    background: #12151d;
+    border-right: 1px solid #262c3a;
   }
 
-  #css3d-container {
+  #board {
+    position: relative;
+    flex-grow: 1;
+    overflow: hidden;
+    background: #0c0f14;
+  }
+
+  /* Perspective floor backdrop: purely visual, no interaction */
+  #floor-backdrop {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    overflow: hidden;
+    perspective: 500px;
+    perspective-origin: 50% 0%;
+  }
+
+  #floor-grid {
+    position: absolute;
+    left: -50%;
+    right: -50%;
+    bottom: 0;
+    height: 140%;
+    background-image:
+      linear-gradient(to right, rgba(108, 184, 255, 0.14) 1px, transparent 1px),
+      linear-gradient(to top, rgba(108, 184, 255, 0.14) 1px, transparent 1px);
+    background-size: 60px 60px;
+    transform: rotateX(72deg);
+    transform-origin: bottom;
+    -webkit-mask-image: linear-gradient(to top, rgba(0,0,0,0.9), transparent 85%);
+            mask-image: linear-gradient(to top, rgba(0,0,0,0.9), transparent 85%);
+  }
+
+  #floor-vignette {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at 50% 100%, rgba(108, 184, 255, 0.08), transparent 65%);
+  }
+
+  #connections-svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
     pointer-events: none;
   }
 
-  .word-label {
+  #sidebar {
+    width: 260px;
+    flex-shrink: 0;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    background: #12151d;
+    border-left: 1px solid #262c3a;
+  }
+
+  #directions-box {
+    border: 1px solid #3a4356;
+    border-radius: 8px;
+    padding: 14px 16px;
+    background: #1a1f2b;
+    font-size: 13px;
+    line-height: 1.5;
+    color: #c4cbdb;
+    white-space: pre-line;
+  }
+
+  #directions-box h2 {
+    margin: 0 0 8px;
+    font-size: 14px;
+    color: #f4f6fa;
+  }
+
+  /* --- Word chips (bank + board) --- */
+  .word-chip {
     pointer-events: auto;
     cursor: grab;
     user-select: none;
@@ -42,53 +164,29 @@
     border: 1px solid rgba(255, 255, 255, 0.15);
     border-radius: 6px;
     padding: 6px 12px;
-    font-size: 18px;
+    font-size: 16px;
     font-weight: 600;
     white-space: nowrap;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.45);
   }
 
-  .word-label.dragging {
+  #word-bank .word-chip {
+    width: 100%;
+    box-sizing: border-box;
+    text-align: center;
+  }
+
+  #board .word-chip {
+    position: absolute;
+  }
+
+  .word-chip.dragging {
     cursor: grabbing;
   }
 
-  .word-label.selected {
+  .word-chip.selected {
     border-color: #6cf0ff;
     box-shadow: 0 0 12px rgba(108, 240, 255, 0.7);
-  }
-
-  .axis-label {
-    pointer-events: none;
-    user-select: none;
-    color: #8da3c2;
-    font-size: 20px;
-    font-weight: 700;
-    letter-spacing: 1px;
-  }
-
-  #toolbar {
-    position: absolute;
-    top: 16px;
-    left: 50%;
-    transform: translateX(-50%);
-    display: flex;
-    gap: 8px;
-    z-index: 10;
-  }
-
-  #word-input {
-    width: 220px;
-    padding: 10px 12px;
-    border-radius: 6px;
-    border: 1px solid #3a4356;
-    background: #1a1f2b;
-    color: #f4f6fa;
-    font-size: 15px;
-    outline: none;
-  }
-
-  #word-input::placeholder {
-    color: #7b8497;
   }
 
   button {
@@ -104,208 +202,211 @@
   button:hover {
     background: #384154;
   }
-
-  #download-btn {
-    position: absolute;
-    top: 16px;
-    right: 16px;
-    z-index: 10;
-  }
-
-  #help {
-    position: absolute;
-    bottom: 12px;
-    left: 50%;
-    transform: translateX(-50%);
-    color: #7b8497;
-    font-size: 12px;
-    z-index: 10;
-    text-align: center;
-  }
 </style>
 </head>
 <body>
 
-<div id="stage">
-  <div id="webgl-container"></div>
-  <div id="css3d-container"></div>
+<div id="welcome-overlay">
+  <div id="welcome-box">
+    <h1>Build Your Word Cloud</h1>
+    <p>LLMs create word clouds, also known as vector embeddings, where words are tokens and vectors are the distances between tokens in space. Your brain is now the LLM.
+
+This tool allows you to create your own word cloud based on your lived experiences, ideas, and viewpoint. Drag words from the left column and place them in spatial relationship to one another &mdash; words closer together have more semantic similarity or contextual likeness, words further apart have less. There is no right location. Each word cloud will be unique to you.</p>
+    <button id="welcome-enter-btn">Enter</button>
+  </div>
 </div>
 
-<div id="toolbar">
-  <input id="word-input" type="text" placeholder="Type words or a sentence, press Enter" autocomplete="off">
+<div id="app">
+  <div id="word-bank"></div>
+
+  <div id="board">
+    <div id="floor-backdrop">
+      <div id="floor-grid"></div>
+      <div id="floor-vignette"></div>
+    </div>
+    <svg id="connections-svg"></svg>
+  </div>
+
+  <div id="sidebar">
+    <div id="directions-box">
+      <h2>Directions</h2>LLMs create word clouds, also known as vector embeddings, where words are tokens and vectors are the distances between tokens in space. Your brain is now the LLM. This tool allows you the user to create your own word cloud based on your lived experiences, ideas, and viewpoint.
+
+Drag words from the column on the left and place them in spatial relationship to one another. Words closer together have more semantic similarity or contextual likeness. Words further apart on the screen have less. There is no right location. Remember this is based on your views, ideas, and lived experience. Each word cloud will be unique to each user.
+
+You can double click on each word to create a line between them. This line represents the sentence you are making.</div>
+    <button id="reset-btn">Reset</button>
+    <button id="download-btn">Download Screenshot</button>
+  </div>
 </div>
-<button id="download-btn">Download Screenshot</button>
-<div id="help">Drag empty space to orbit &middot; scroll to zoom &middot; drag a word to move it &middot; double-click two words to connect them</div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
-<script type="importmap">
-{
-  "imports": {
-    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
-  }
-}
-</script>
-
-<script type="module">
-import * as THREE from 'three';
-import { CSS3DRenderer, CSS3DObject } from 'three/addons/renderers/CSS3DRenderer.js';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-
+<script>
 (function () {
-  const stage = document.getElementById('stage');
-  const webglContainer = document.getElementById('webgl-container');
-  const css3dContainer = document.getElementById('css3d-container');
-  const wordInput = document.getElementById('word-input');
+  // Fill in the real recipient address before sharing this tool.
+  const EMAIL_TO = 'TODO_PLACEHOLDER@example.com';
+
+  // Placeholder word set — swap with the real curated list when decided.
+  // Deduplicated by construction (each entry appears once).
+  const WORD_BANK_SOURCE = [
+    'family', 'freedom', 'community', 'growth', 'fear',
+    'trust', 'change', 'home', 'identity', 'connection',
+    'resilience', 'hope', 'struggle', 'belonging', 'purpose'
+  ];
+
+  const board = document.getElementById('board');
+  const wordBankEl = document.getElementById('word-bank');
+  const svg = document.getElementById('connections-svg');
+  const resetBtn = document.getElementById('reset-btn');
   const downloadBtn = document.getElementById('download-btn');
+  const welcomeOverlay = document.getElementById('welcome-overlay');
+  const welcomeEnterBtn = document.getElementById('welcome-enter-btn');
 
-  const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 5000);
-
-  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
-  renderer.setSize(window.innerWidth, window.innerHeight);
-  renderer.setPixelRatio(window.devicePixelRatio);
-  webglContainer.appendChild(renderer.domElement);
-
-  const cssRenderer = new CSS3DRenderer();
-  cssRenderer.setSize(window.innerWidth, window.innerHeight);
-  css3dContainer.appendChild(cssRenderer.domElement);
-
-  // Box spans [0, BOX_SIZE] on every axis, so (0,0,0) is the corner where the
-  // floor and two walls meet and the visible coordinate space is the positive octant.
-  const BOX_SIZE = 900;
-  const boxCenter = new THREE.Vector3(BOX_SIZE / 2, BOX_SIZE / 2, BOX_SIZE / 2);
-
-  camera.position.set(boxCenter.x + 400, boxCenter.y + 300, boxCenter.z + 1000);
-
-  const controls = new OrbitControls(camera, renderer.domElement);
-  controls.target.copy(boxCenter);
-  controls.enableDamping = true;
-  controls.dampingFactor = 0.1;
-  controls.screenSpacePanning = true;
-  controls.update();
-
-  scene.add(new THREE.AmbientLight(0xffffff, 1));
-
-  // --- Coordinate-system backdrop (floor + two walls, grid + box edges + X/Y/Z edge labels) ---
-  (function buildBackdrop() {
-    const gridDivisions = 10;
-    const backdrop = new THREE.Group();
-
-    const panelMaterial = new THREE.MeshBasicMaterial({
-      color: 0x6cb8ff,
-      transparent: true,
-      opacity: 0.05,
-      side: THREE.DoubleSide,
-      depthWrite: false
-    });
-
-    function makeGrid() {
-      const grid = new THREE.GridHelper(BOX_SIZE, gridDivisions, 0x4a5568, 0x2e3646);
-      grid.material.transparent = true;
-      grid.material.opacity = 0.35;
-      return grid;
-    }
-
-    // Floor (XZ plane) at y = 0
-    const floorGrid = makeGrid();
-    floorGrid.position.set(BOX_SIZE / 2, 0, BOX_SIZE / 2);
-    backdrop.add(floorGrid);
-    const floorPanel = new THREE.Mesh(new THREE.PlaneGeometry(BOX_SIZE, BOX_SIZE), panelMaterial);
-    floorPanel.rotation.x = -Math.PI / 2;
-    floorPanel.position.set(BOX_SIZE / 2, 0, BOX_SIZE / 2);
-    backdrop.add(floorPanel);
-
-    // Back wall (XY plane) at z = 0
-    const backGrid = makeGrid();
-    backGrid.rotation.x = Math.PI / 2;
-    backGrid.position.set(BOX_SIZE / 2, BOX_SIZE / 2, 0);
-    backdrop.add(backGrid);
-    const backPanel = new THREE.Mesh(new THREE.PlaneGeometry(BOX_SIZE, BOX_SIZE), panelMaterial);
-    backPanel.position.set(BOX_SIZE / 2, BOX_SIZE / 2, 0);
-    backdrop.add(backPanel);
-
-    // Left wall (YZ plane) at x = 0
-    const leftGrid = makeGrid();
-    leftGrid.rotation.z = Math.PI / 2;
-    leftGrid.position.set(0, BOX_SIZE / 2, BOX_SIZE / 2);
-    backdrop.add(leftGrid);
-    const leftPanel = new THREE.Mesh(new THREE.PlaneGeometry(BOX_SIZE, BOX_SIZE), panelMaterial);
-    leftPanel.rotation.y = Math.PI / 2;
-    leftPanel.position.set(0, BOX_SIZE / 2, BOX_SIZE / 2);
-    backdrop.add(leftPanel);
-
-    // Bounding box edges
-    const edges = new THREE.EdgesGeometry(new THREE.BoxGeometry(BOX_SIZE, BOX_SIZE, BOX_SIZE));
-    const boxLines = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x3a4356, transparent: true, opacity: 0.5 }));
-    boxLines.position.copy(boxCenter);
-    backdrop.add(boxLines);
-
-    // X/Y/Z labels on the box's own edges
-    function addLabel(text, position, className) {
-      const div = document.createElement('div');
-      div.className = className;
-      div.textContent = text;
-      const obj = new CSS3DObject(div);
-      obj.position.copy(position);
-      backdrop.add(obj);
-    }
-    // Vertical edge where back wall and left wall meet (x=0, z=0)
-    addLabel('Z', new THREE.Vector3(0, BOX_SIZE + 20, 0), 'axis-label');
-    // Bottom edge of the left wall (x=0, y=0)
-    addLabel('Y', new THREE.Vector3(0, 0, BOX_SIZE + 20), 'axis-label');
-    // Bottom edge of the back wall (z=0, y=0)
-    addLabel('X', new THREE.Vector3(BOX_SIZE + 20, 0, 0), 'axis-label');
-
-    scene.add(backdrop);
-  })();
-
-  const linesGroup = new THREE.Group();
-  scene.add(linesGroup);
-
-  let words = [];
+  let remainingBank = [];
+  let placedWords = [];
   let connections = [];
   let wordIdCounter = 0;
   let selectedWord = null;
 
-  function randomPosition() {
-    const margin = 60;
-    const span = BOX_SIZE - margin * 2;
-    return new THREE.Vector3(
-      margin + Math.random() * span,
-      margin + Math.random() * span,
-      margin + Math.random() * span
-    );
+  welcomeEnterBtn.addEventListener('click', () => {
+    welcomeOverlay.classList.add('hidden');
+  });
+
+  // --- Word bank rendering ---
+  function renderBank() {
+    wordBankEl.innerHTML = '';
+    remainingBank.forEach(text => {
+      const div = document.createElement('div');
+      div.className = 'word-chip';
+      div.textContent = text;
+      div.setAttribute('draggable', 'false');
+      div.addEventListener('pointerdown', (e) => onBankWordPointerDown(e, text));
+      wordBankEl.appendChild(div);
+    });
   }
 
-  function createWord(text, position) {
-    const div = document.createElement('div');
-    div.className = 'word-label';
-    div.textContent = text;
+  function resetAll() {
+    placedWords.forEach(w => w.div.remove());
+    placedWords = [];
+    connections.forEach(c => c.lineEl.remove());
+    connections = [];
+    selectedWord = null;
+    remainingBank = WORD_BANK_SOURCE.slice();
+    renderBank();
+  }
 
-    const cssObject = new CSS3DObject(div);
-    cssObject.position.copy(position);
-    scene.add(cssObject);
+  resetBtn.addEventListener('click', resetAll);
+
+  // --- Placing a word onto the board ---
+  function placeWord(text, x, y) {
+    const div = document.createElement('div');
+    div.className = 'word-chip';
+    div.textContent = text;
 
     const wordObj = {
       id: wordIdCounter++,
-      text: text,
-      position: position,
-      cssObject: cssObject,
-      div: div
+      text,
+      x,
+      y,
+      div
     };
 
-    div.addEventListener('pointerdown', (e) => onWordPointerDown(e, wordObj));
+    positionChip(wordObj);
+    board.appendChild(div);
+
+    div.addEventListener('pointerdown', (e) => onPlacedWordPointerDown(e, wordObj));
     div.addEventListener('dblclick', (e) => {
       e.stopPropagation();
       onWordDoubleClick(wordObj);
     });
 
-    words.push(wordObj);
+    placedWords.push(wordObj);
+
+    remainingBank = remainingBank.filter(t => t !== text);
+    renderBank();
+
     return wordObj;
   }
 
+  function positionChip(wordObj) {
+    wordObj.div.style.left = wordObj.x + 'px';
+    wordObj.div.style.top = wordObj.y + 'px';
+  }
+
+  // --- Dragging a word already on the bank (to place it) ---
+  function onBankWordPointerDown(e, text) {
+    e.preventDefault();
+    const boardRect = board.getBoundingClientRect();
+
+    // Create a temporary chip that follows the pointer during the drag.
+    const ghost = document.createElement('div');
+    ghost.className = 'word-chip dragging';
+    ghost.textContent = text;
+    ghost.style.position = 'fixed';
+    ghost.style.zIndex = '50';
+    ghost.style.pointerEvents = 'none';
+    document.body.appendChild(ghost);
+
+    const offsetX = 30;
+    const offsetY = 15;
+
+    function moveGhost(ev) {
+      ghost.style.left = (ev.clientX - offsetX) + 'px';
+      ghost.style.top = (ev.clientY - offsetY) + 'px';
+    }
+    moveGhost(e);
+
+    function onMove(ev) { moveGhost(ev); }
+
+    function onUp(ev) {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      ghost.remove();
+
+      const withinBoard =
+        ev.clientX >= boardRect.left && ev.clientX <= boardRect.right &&
+        ev.clientY >= boardRect.top && ev.clientY <= boardRect.bottom;
+
+      if (withinBoard) {
+        const x = ev.clientX - boardRect.left - offsetX;
+        const y = ev.clientY - boardRect.top - offsetY;
+        placeWord(text, x, y);
+      }
+    }
+
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  }
+
+  // --- Dragging a word already placed on the board ---
+  function onPlacedWordPointerDown(e, wordObj) {
+    e.preventDefault();
+    e.stopPropagation();
+    wordObj.div.classList.add('dragging');
+
+    const boardRect = board.getBoundingClientRect();
+    const chipRect = wordObj.div.getBoundingClientRect();
+    const grabOffsetX = e.clientX - chipRect.left;
+    const grabOffsetY = e.clientY - chipRect.top;
+
+    function onMove(ev) {
+      wordObj.x = ev.clientX - boardRect.left - grabOffsetX;
+      wordObj.y = ev.clientY - boardRect.top - grabOffsetY;
+      positionChip(wordObj);
+      updateConnectionsFor(wordObj);
+    }
+
+    function onUp() {
+      wordObj.div.classList.remove('dragging');
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+    }
+
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  }
+
+  // --- Connections ---
   function onWordDoubleClick(wordObj) {
     if (!selectedWord) {
       selectedWord = wordObj;
@@ -322,117 +423,65 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
     selectedWord = null;
   }
 
+  function chipCenter(wordObj) {
+    return {
+      x: wordObj.x + wordObj.div.offsetWidth / 2,
+      y: wordObj.y + wordObj.div.offsetHeight / 2
+    };
+  }
+
   function createConnection(a, b) {
     const exists = connections.some(c =>
       (c.a.id === a.id && c.b.id === b.id) || (c.a.id === b.id && c.b.id === a.id)
     );
     if (exists) return;
 
-    const geometry = new THREE.BufferGeometry().setFromPoints([a.position, b.position]);
-    const material = new THREE.LineBasicMaterial({ color: 0x800080, linewidth: 10 });
-    const line = new THREE.Line(geometry, material);
-    linesGroup.add(line);
+    const lineEl = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    lineEl.setAttribute('stroke', '#800080');
+    lineEl.setAttribute('stroke-width', '2');
+    svg.appendChild(lineEl);
 
-    connections.push({ a, b, line });
+    const conn = { a, b, lineEl };
+    connections.push(conn);
+    updateConnectionLine(conn);
   }
 
-  function updateConnections() {
+  function updateConnectionLine(conn) {
+    const p1 = chipCenter(conn.a);
+    const p2 = chipCenter(conn.b);
+    conn.lineEl.setAttribute('x1', p1.x);
+    conn.lineEl.setAttribute('y1', p1.y);
+    conn.lineEl.setAttribute('x2', p2.x);
+    conn.lineEl.setAttribute('y2', p2.y);
+  }
+
+  function updateConnectionsFor(wordObj) {
     connections.forEach(conn => {
-      const positions = conn.line.geometry.attributes.position;
-      positions.setXYZ(0, conn.a.position.x, conn.a.position.y, conn.a.position.z);
-      positions.setXYZ(1, conn.b.position.x, conn.b.position.y, conn.b.position.z);
-      positions.needsUpdate = true;
+      if (conn.a.id === wordObj.id || conn.b.id === wordObj.id) {
+        updateConnectionLine(conn);
+      }
     });
   }
 
-  // --- Dragging words ---
-  let dragState = null;
-  const dragPlane = new THREE.Plane();
-  const raycaster = new THREE.Raycaster();
-  const pointerNDC = new THREE.Vector2();
-  const planeIntersectPoint = new THREE.Vector3();
-
-  function onWordPointerDown(e, wordObj) {
-    e.preventDefault();
-    e.stopPropagation();
-    controls.enabled = false;
-    wordObj.div.classList.add('dragging');
-
-    const cameraDir = new THREE.Vector3();
-    camera.getWorldDirection(cameraDir);
-    dragPlane.setFromNormalAndCoplanarPoint(cameraDir, wordObj.position);
-
-    dragState = { wordObj };
-
-    window.addEventListener('pointermove', onDragMove);
-    window.addEventListener('pointerup', onDragEnd);
-  }
-
-  function setPointerNDC(e) {
-    const rect = cssRenderer.domElement.getBoundingClientRect();
-    pointerNDC.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-    pointerNDC.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-  }
-
-  function onDragMove(e) {
-    if (!dragState) return;
-    setPointerNDC(e);
-    raycaster.setFromCamera(pointerNDC, camera);
-    if (raycaster.ray.intersectPlane(dragPlane, planeIntersectPoint)) {
-      dragState.wordObj.position.copy(planeIntersectPoint);
-      dragState.wordObj.cssObject.position.copy(planeIntersectPoint);
-    }
-  }
-
-  function onDragEnd() {
-    if (dragState) {
-      dragState.wordObj.div.classList.remove('dragging');
-    }
-    dragState = null;
-    controls.enabled = true;
-    window.removeEventListener('pointermove', onDragMove);
-    window.removeEventListener('pointerup', onDragEnd);
-  }
-
-  // --- Add word(s) via input ---
-  wordInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') {
-      const tokens = wordInput.value
-        .split(/\s+/)
-        .map(t => t.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, ''))
-        .filter(t => t.length > 0);
-      tokens.forEach(token => createWord(token, randomPosition()));
-      wordInput.value = '';
-    }
-  });
-
-  // --- Screenshot download ---
+  // --- Screenshot download + email stand-in ---
   downloadBtn.addEventListener('click', () => {
-    html2canvas(stage, { backgroundColor: '#0c0f14' }).then(canvas => {
+    html2canvas(board, { backgroundColor: '#0c0f14' }).then(canvas => {
       const link = document.createElement('a');
       link.download = 'word-map.png';
       link.href = canvas.toDataURL('image/png');
       link.click();
+
+      const subject = encodeURIComponent('My Word Map');
+      const body = encodeURIComponent(
+        'The word-map screenshot was just downloaded to this computer as "word-map.png". ' +
+        'Please attach it to this email before sending.'
+      );
+      window.location.href = `mailto:${EMAIL_TO}?subject=${subject}&body=${body}`;
     });
   });
 
-  // --- Resize ---
-  window.addEventListener('resize', () => {
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    cssRenderer.setSize(window.innerWidth, window.innerHeight);
-  });
-
-  // --- Render loop ---
-  function animate() {
-    requestAnimationFrame(animate);
-    controls.update();
-    updateConnections();
-    renderer.render(scene, camera);
-    cssRenderer.render(scene, camera);
-  }
-  animate();
+  // --- Init ---
+  resetAll();
 })();
 </script>
 
