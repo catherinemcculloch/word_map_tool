@@ -59,6 +59,39 @@
     font-size: 15px;
   }
 
+  #welcome-enter-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
+  #participant-name-input {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+    margin: 0 0 20px;
+    padding: 10px 12px;
+    font-size: 15px;
+    background: #0c0f14;
+    color: #f4f6fa;
+    border: 1px solid #3a4356;
+    border-radius: 6px;
+  }
+
+  /* --- Submitted confirmation overlay (reuses welcome-overlay layout) --- */
+  #submitted-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    background: rgba(8, 10, 14, 0.96);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  #submitted-overlay.hidden {
+    display: none;
+  }
+
   /* --- Layout --- */
   #app {
     display: flex;
@@ -212,7 +245,15 @@
     <p>LLMs create word clouds, also known as vector embeddings, where words are tokens and vectors are the distances between tokens in space. Your brain is now the LLM.
 
 This tool allows you to create your own word cloud based on your lived experiences, ideas, and viewpoint. Drag words from the left column and place them in spatial relationship to one another &mdash; words closer together have more semantic similarity or contextual likeness, words further apart have less. There is no right location. Each word cloud will be unique to you.</p>
-    <button id="welcome-enter-btn">Enter</button>
+    <input id="participant-name-input" type="text" placeholder="Your name or nickname" autocomplete="off">
+    <button id="welcome-enter-btn" disabled>Enter</button>
+  </div>
+</div>
+
+<div id="submitted-overlay" class="hidden">
+  <div id="welcome-box">
+    <h1>Submitted &mdash; thank you!</h1>
+    <p style="text-align:center;">Your word cloud has been saved.</p>
   </div>
 </div>
 
@@ -235,7 +276,7 @@ Drag words from the column on the left and place them in spatial relationship to
 
 You can double click on each word to create a line between them. This line represents the sentence you are making.</div>
     <button id="reset-btn">Reset</button>
-    <button id="download-btn">Download Screenshot</button>
+    <button id="done-btn">Done</button>
   </div>
 </div>
 
@@ -243,8 +284,8 @@ You can double click on each word to create a line between them. This line repre
 
 <script>
 (function () {
-  // Fill in the real recipient address before sharing this tool.
-  const EMAIL_TO = 'TODO_PLACEHOLDER@example.com';
+  // Paste the deployed Google Apps Script Web App URL here (see google-apps-script/Code.gs).
+  const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxtM4e57eF3u9cV0G3fsBx70I9qLlLA9IbK7IiCfOAITjqCTL0s-PNsgsEzhJLlYTsidA/exec';
 
   // Placeholder word set — swap with the real curated list when decided.
   // Deduplicated by construction (each entry appears once).
@@ -258,17 +299,26 @@ You can double click on each word to create a line between them. This line repre
   const wordBankEl = document.getElementById('word-bank');
   const svg = document.getElementById('connections-svg');
   const resetBtn = document.getElementById('reset-btn');
-  const downloadBtn = document.getElementById('download-btn');
+  const doneBtn = document.getElementById('done-btn');
   const welcomeOverlay = document.getElementById('welcome-overlay');
   const welcomeEnterBtn = document.getElementById('welcome-enter-btn');
+  const participantNameInput = document.getElementById('participant-name-input');
+  const submittedOverlay = document.getElementById('submitted-overlay');
 
   let remainingBank = [];
   let placedWords = [];
   let connections = [];
   let wordIdCounter = 0;
   let selectedWord = null;
+  let participantName = '';
+
+  participantNameInput.addEventListener('input', () => {
+    welcomeEnterBtn.disabled = participantNameInput.value.trim() === '';
+  });
 
   welcomeEnterBtn.addEventListener('click', () => {
+    participantName = participantNameInput.value.trim();
+    if (!participantName) return;
     welcomeOverlay.classList.add('hidden');
   });
 
@@ -463,22 +513,42 @@ You can double click on each word to create a line between them. This line repre
     });
   }
 
-  // --- Screenshot download + email stand-in ---
-  downloadBtn.addEventListener('click', () => {
-    html2canvas(board, { backgroundColor: '#0c0f14' }).then(canvas => {
-      const link = document.createElement('a');
-      link.download = 'word-map.png';
-      link.href = canvas.toDataURL('image/png');
-      link.click();
+  // --- Done: upload the finished board to Google Drive ---
+  doneBtn.addEventListener('click', () => {
+    doneBtn.disabled = true;
 
-      const subject = encodeURIComponent('My Word Map');
-      const body = encodeURIComponent(
-        'The word-map screenshot was just downloaded to this computer as "word-map.png". ' +
-        'Please attach it to this email before sending.'
-      );
-      window.location.href = `mailto:${EMAIL_TO}?subject=${subject}&body=${body}`;
+    html2canvas(board, { backgroundColor: '#0c0f14' }).then(canvas => {
+      const image = canvas.toDataURL('image/png');
+      const timestamp = new Date().toISOString();
+
+      // Fire-and-forget: mode "no-cors" means we can't read the response
+      // anyway, and Apps Script's round-trip can take a second or more, so
+      // don't make the participant wait on it before confirming.
+      fetch(APPS_SCRIPT_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        body: JSON.stringify({ name: participantName, image, timestamp })
+      }).catch(() => {
+        // Network errors aren't observable under no-cors either way;
+        // the workshop continues regardless.
+      });
+
+      showSubmittedAndReset();
     });
   });
+
+  function showSubmittedAndReset() {
+    submittedOverlay.classList.remove('hidden');
+    setTimeout(() => {
+      submittedOverlay.classList.add('hidden');
+      resetAll();
+      participantName = '';
+      participantNameInput.value = '';
+      welcomeEnterBtn.disabled = true;
+      doneBtn.disabled = false;
+      welcomeOverlay.classList.remove('hidden');
+    }, 4000);
+  }
 
   // --- Init ---
   resetAll();

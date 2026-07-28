@@ -1,67 +1,48 @@
-# Rebuild as a flat 2D word-cloud board — Workshop Word-Map Tool
+# Auto-upload finished word clouds to Google Drive via a "Done" button
 
 ## Context
-User testing showed the true-3D Three.js scene (orbit/zoom camera, drag-on-a-camera-facing-plane) is too complicated for the tool's general-population audience. The user wants a full rework, captured in `changes7_20_26.md`, that replaces the 3D interaction model with a simple flat 2D drag-and-drop board (styled with a perspective-floor backdrop for visual depth only, no real 3D math), backed by a fixed/preset word bank instead of free-text entry, with a welcome overlay, a redesigned right-hand directions sidebar, a reset control, duplicate-prevention, and an updated screenshot action that also opens a pre-filled email draft. This is effectively a rewrite of `index.html`; nothing else in the repo changes.
+This workshop tool (already rebuilt as a 2D drag-and-drop board — see git history) currently ends with a "Download Screenshot" button that saves a local PNG and opens a `mailto:` draft with a placeholder address, requiring the participant to manually attach and send the file. For live workshops with many participants, the facilitator wants a single "Done" click per participant that silently uploads their finished word-cloud image to one place (a Google Drive folder) so all submissions can be pulled up and compared side by side afterward — no manual download/email/upload steps for participants, and no server for the facilitator to run or maintain.
 
-## Clarified decisions (from user)
-1. **Remove Three.js/CSS3D/OrbitControls entirely.** Rebuild the board as plain HTML/CSS with SVG for connector lines. No WebGL, no camera, no 3D drag-plane raycasting.
-2. **Visual style**: keep a stylized "floor grid receding into the distance" backdrop — a flat CSS-drawn perspective floor (gradient/converging lines), evoking the old coordinate-box aesthetic — sitting behind the flat 2D word board.
-3. **Word bank**: fixed placeholder list of sample words (clearly marked as a single array constant near the top of the script for the user to swap later), rendered as a vertical column on the left. Words drag from the bank onto the board.
-4. **Duplicates**: handled two ways — (a) the placeholder source array itself contains no duplicate entries, and (b) once a word is dragged from the bank onto the board it is removed from the bank (visually and from the draggable pool), so it can only be placed once. Reset returns all placed words back to the bank in their original order.
-5. **Input box removed.** No free-text word entry anymore.
-6. **Directions sidebar**: moves to the right side of the screen, in a simple bordered box, containing the item-9 directions text verbatim, plus an added line clarifying: "You can double click on each word to create a line between them. This line represents the sentence you are making."
-7. **Reset button**: sits directly under the directions box on the right side. Clears the board (removes all placed words and all connections) and repopulates the left-hand bank with the full original word list.
-8. **Welcome overlay**: full-screen overlay shown on load with a purpose message drafted from the item-9 directions text, and an "Enter" button that dismisses it (adds a `hidden`/removed state, doesn't reappear until page reload).
-9. **Double-click-to-connect** behavior is preserved, adapted to 2D: double-click one placed word, then double-click a second, draws an SVG line between their board positions; positions update live as either word is dragged.
-10. **Screenshot button**: still captures the board via `html2canvas` and triggers the PNG download (as today), and additionally opens a `mailto:` link with a placeholder recipient address (clearly marked as a `TO_DO` constant), a pre-filled subject/body reminding the user to attach the just-downloaded PNG. True automatic email-with-attachment isn't possible from a static page without a backend/service, so this is the documented stand-in.
+**Chosen approach**: Google Apps Script deployed as a Web App acts as a free, always-on upload endpoint. The page POSTs a base64 PNG (captured via the existing `html2canvas` call) plus the participant's name straight to that endpoint, which saves it into a Drive folder. Google's infrastructure is the only thing that needs to "stay up" — nothing for the facilitator to host or babysit during the workshop.
 
-## Implementation plan (all in `index.html`)
+## Clarified decisions
+1. **Single button**: "Download Screenshot" is replaced by a "Done" button. No local file download, no `mailto:` — one click uploads directly to Drive.
+2. **Participant naming**: the welcome overlay gains a required name/nickname text field before the "Enter" button is usable. That name is sanitized and used in the uploaded filename (e.g. `Jordan-2026-07-28T14-30-12.png`) so submissions are identifiable in Drive.
+3. **Post-submit UX**: clicking "Done" shows a brief "Submitted — thank you!" confirmation overlay, then after a few seconds automatically calls the existing `resetAll()` and re-shows the welcome overlay (with the name field cleared) so the same device is ready for the next participant.
 
-### Structure
-- Delete the Three.js `<script type="importmap">` and the `three`/`CSS3DRenderer`/`OrbitControls` imports/usage entirely. Keep `html2canvas` (still needed for the screenshot).
-- Replace `#stage` / `#webgl-container` / `#css3d-container` with a simpler layout:
-  - `#welcome-overlay` — full-screen overlay, purpose text + "Enter" button (top z-index, removed/hidden on click).
-  - `#app` — flex/grid layout: `#word-bank` (left vertical column), `#board` (center, flex-grow, houses the perspective-floor backdrop + placed word chips + an absolutely-positioned `<svg>` overlay for connector lines), `#sidebar` (right column: directions box + reset button).
-- Word chips become plain `<div class="word-chip">` elements positioned with `left`/`top` (px, relative to `#board`) instead of `THREE.Vector3` + `CSS3DObject`.
+## Implementation plan
 
-### Word bank & placement
-- `const WORD_BANK = [...]` — placeholder list (deduped) defined once near the top of the script.
-- Render each bank word as a draggable `.word-chip` in `#word-bank`.
-- Use native HTML5 drag-and-drop (`draggable="true"`, `dragstart`/`dragover`/`drop` on `#board`) or pointer-based drag (consistent with the existing pointer-event drag code the user already has patterns for) — reuse the existing `onWordPointerDown`/`onDragMove`/`onDragEnd` pointer-event approach from the current implementation, adapted to operate on 2D `left/top` CSS coordinates instead of a 3D raycast plane, since that pattern is already proven for smooth chip dragging in this codebase.
-- On drop onto `#board`, remove the word's entry from `WORD_BANK`'s live/remaining list (re-render `#word-bank` without it) and create a placed word chip on the board at the drop position.
-- Track state as `placedWords` (analogous to today's `words` array: `{ id, text, x, y, div }`) and `remainingBank` (words not yet placed).
+### Google Apps Script backend (new file, not part of the deployed site)
+- Add `google-apps-script/Code.gs` to the repo as reference/setup source (Apps Script isn't hosted from GitHub Pages — the user pastes this into script.google.com and deploys it separately). Contents:
+  - `doPost(e)`: parse `JSON.parse(e.postData.contents)` → `{ name, image, timestamp }`, decode the base64 PNG (`Utilities.base64Decode`, strip the `data:image/png;base64,` prefix), build a `Blob`, and save it into a specific Drive folder (folder ID as a constant at the top of the script) with filename `${sanitizedName}-${timestamp}.png`.
+  - No `doGet` needed.
+- Add a short comment block at the top of `Code.gs` with the manual deployment steps: create/choose a Drive folder and copy its ID into the script, paste the script into a new Apps Script project, "Deploy → New deployment → Web app", execute as "Me", access "Anyone", copy the resulting `/exec` URL.
 
-### Connections
-- Reuse the existing double-click selection logic (`onWordDoubleClick`/`selectedWord`) unchanged in spirit; instead of a `THREE.Line`, draw/update an SVG `<line>` inside the board's overlay `<svg>`, with `x1/y1/x2/y2` set from each connected word's current `x/y` and refreshed on drag (no more per-frame `animate()` loop needed — update the line directly in the drag handler instead of a render loop, since there's no continuous camera to redraw).
-- `connections` array becomes `{ a, b, lineEl }`.
-
-### Reset
-- Reset button (under the directions box): clears `placedWords` and `connections` (remove their DOM/SVG elements), restores `remainingBank` to the full deduped `WORD_BANK`, re-renders `#word-bank`.
-
-### Directions sidebar & welcome overlay
-- Directions box: bordered container with the exact text from item 9, plus the added double-click/sentence-line clarification sentence appended.
-- Welcome overlay: headline + short purpose paragraph adapted from the same item-9 text, "Enter" button removes/hides the overlay.
-
-### Screenshot / email
-- Keep `html2canvas(board-or-app, {...}).then(...)` to produce and download the PNG as today.
-- Immediately after triggering the download, also set `window.location.href` (or open) a `mailto:PLACEHOLDER_EMAIL@example.com?subject=...&body=...` link — `PLACEHOLDER_EMAIL` defined as a clearly-named constant near the top of the script for the user to fill in later.
+### `index.html` changes
+- **Welcome overlay** (~line 209-217): add a required `<input id="participant-name-input">` above the Enter button. `welcomeEnterBtn` stays disabled (or shows a validation message) until the field is non-empty; the trimmed value is stored in a `participantName` variable used later for the filename.
+- **Sidebar button** (~line 238): rename `#download-btn` to `#done-btn`, label "Done".
+- **New confirmation overlay**: a small `#submitted-overlay` (hidden by default, same overlay pattern as `#welcome-overlay`) with a "Submitted — thank you!" message, shown after upload and auto-hidden.
+- **Script** (~line 244 on):
+  - Remove `EMAIL_TO` constant and the `mailto:` construction.
+  - Add `const APPS_SCRIPT_URL = 'TODO_PASTE_DEPLOYED_WEB_APP_URL_HERE';` as a clearly-marked placeholder constant for the facilitator to fill in after deploying `Code.gs`.
+  - Replace the `downloadBtn` click handler with a `doneBtn` handler that:
+    1. Runs `html2canvas(board, { backgroundColor: '#0c0f14' })` as today, but instead of triggering a file download, takes `canvas.toDataURL('image/png')`.
+    2. Builds a sanitized filename-safe timestamp and `POST`s `JSON.stringify({ name: participantName, image: dataUrl, timestamp })` to `APPS_SCRIPT_URL` via `fetch(..., { method: 'POST', mode: 'no-cors', body })` — `no-cors` is required because Apps Script Web Apps don't return CORS headers for cross-origin callers, and the page doesn't need to read the response, just fire the upload.
+    3. On the fetch promise settling (or immediately, since `no-cors` gives an opaque response with no readable status), shows `#submitted-overlay`.
+    4. After ~4 seconds: hides `#submitted-overlay`, calls the existing `resetAll()`, clears the name input, and re-shows `#welcome-overlay` for the next participant.
+  - Reuse existing helpers (`resetAll`, `board`, the existing `html2canvas` CDN script tag) — no new dependencies needed.
 
 ### CSS
-- New `.word-chip` styling reused/adapted from today's `.word-label`.
-- New perspective-floor backdrop: CSS gradient + repeating linear-gradient "grid" lines with a `perspective`/`transform: rotateX(...)` on a floor `<div>` behind the board, purely visual (no interaction tied to it).
-- `#sidebar` directions box: simple border, padding, matches existing dark theme palette (`#1a1f2b`/`#3a4356`/etc. already used).
-- Remove now-unused `.axis-label` CSS (no more 3D axis labels) and any WebGL/CSS3D-container-specific rules (`pointer-events: none` layering trick no longer needed since there's no separate WebGL canvas underneath).
+- Add minimal styling for `#participant-name-input` (matches existing dark theme input/box styling already used elsewhere) and `#submitted-overlay` (reuse `#welcome-overlay`'s full-screen overlay pattern/classes rather than duplicating rules).
 
 ## Files
-- `index.html` — entire rewrite of the script/markup/CSS as described above. `CLAUDE.md` and `PLAN.md` will need a follow-up update after implementation to describe the new 2D architecture instead of the retired Three.js one (not done as part of this pass unless requested).
-- All files created or modified for this task (including any verification screenshots saved for review) go in `/Users/catherine/Documents/GitHub/word_map_tool/`, not in `/tmp` or the scratchpad — this repo folder is the single source of truth for this project.
+- `index.html` — welcome overlay name field, Done button + upload logic, confirmation overlay, CSS additions.
+- `google-apps-script/Code.gs` — new reference file with the Apps Script source and deployment instructions in comments.
+- `PLAN.md` — refresh with this plan's content after implementation, per standing practice.
 
 ## Verification
-- Serve locally (`python3 -m http.server 8765`) and load the page: confirm the welcome overlay appears first, "Enter" dismisses it, and the board/bank/sidebar are visible underneath.
-- Confirm the word bank shows the placeholder list in a left column, directions text + reset button appear in a bordered right sidebar, and no text input box exists anywhere.
-- Drag several words from the bank onto the board; confirm each disappears from the bank once placed and appears on the board at the drop location.
-- Confirm a word already placed cannot be dragged again (it's gone from the bank).
-- Double-click two placed words; confirm an SVG line is drawn between them and follows both words when either is dragged.
-- Click Reset; confirm the board and connections clear and all words return to the bank.
-- Click the screenshot button; confirm a PNG downloads (showing chips + connector lines) and a `mailto:` compose window/link is triggered with the placeholder address.
-- Re-check no console errors via a Playwright pass (page load, welcome dismiss, drag-to-board, connect, reset, screenshot) since this is a full rewrite with no existing automated tests.
+- Serve locally (`python3 -m http.server 8765`), load the page: confirm Enter is disabled/blocked until a name is typed, then dismisses the welcome overlay.
+- Place a few words and connect two with a double-click as before (unchanged behavior).
+- Click "Done": confirm a POST fires to `APPS_SCRIPT_URL` (visible in the Network tab even though the response is opaque under `no-cors`), the confirmation overlay appears, and after the delay the board resets and the welcome overlay reappears with the name field empty.
+- Since `APPS_SCRIPT_URL` is a placeholder until the facilitator deploys their own script, verification of the actual Drive upload can't be done against a real deployment in this pass — note this plainly rather than faking success. If the user wants, a temporary test deployment can be created together in a follow-up to confirm an end-to-end file lands in Drive.
+- Playwright pass covering: name-gate on welcome overlay, Done button triggers a network request to the configured URL, confirmation overlay shows/hides, and board/bank state fully resets afterward — with zero console errors.
