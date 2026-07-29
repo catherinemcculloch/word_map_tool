@@ -1,3 +1,26 @@
+# Move participant name entry from welcome screen to after "Done"
+
+## Context
+The name field currently lives on the welcome overlay and gates the "Enter" button before a participant can start placing words (see `index.html`: `#participant-name-input`, `welcomeEnterBtn.disabled` logic, and `participantName` used later in the upload filename). The user wants the name asked for later — after the participant clicks "Done" — instead of up front. This likely reduces friction at the start (get straight into the activity) and only asks for identifying info once the board is actually being submitted.
+
+## Approach
+- **Welcome overlay**: remove `#participant-name-input` entirely. `#welcome-enter-btn` is no longer disabled/gated — clicking it just dismisses the overlay immediately, as it did before the name field existed.
+- **New name-prompt overlay**: add `#name-prompt-overlay` (same full-screen overlay pattern as `#welcome-overlay`/`#submitted-overlay`) containing a short prompt ("What's your name?"), a text input, and a "Submit" button. Hidden by default.
+- **Done button flow changes**: clicking `#done-btn` no longer immediately runs `html2canvas`. Instead it shows `#name-prompt-overlay`. The board stays visible underneath/behind it (not reset) so nothing is lost if they cancel... but there's no cancel — submitting the name is what triggers the actual capture+upload. The name-prompt's "Submit" button (disabled until non-empty, same validation pattern as before) triggers: hide the overlay, set `participantName`, then run the existing `html2canvas` → `toDataURL` → fire-and-forget `fetch` → `showSubmittedAndReset()` sequence essentially unchanged from today.
+- **Reset flow**: `showSubmittedAndReset()` still clears the board and re-shows `#welcome-overlay`, but no longer needs to clear/reset `participantNameInput` (it doesn't exist anymore) — just reset the `participantName` variable to `''` for the next participant.
+- Reuse the existing input styling (`#participant-name-input` CSS rule) for the new overlay's input, and the existing overlay CSS pattern (`#welcome-overlay`/`.hidden` toggle) for `#name-prompt-overlay` — no new CSS concepts needed, just a third overlay of the same shape.
+
+## Files
+- `index.html`: welcome overlay markup (remove name input + disabled gating), new `#name-prompt-overlay` markup, `#done-btn` handler split into "show name prompt" + "capture and upload on submit", minor CSS id rename/reuse for the relocated input.
+
+## Verification
+- Serve locally (`python3 -m http.server 8765`), reload: confirm "Enter" is immediately clickable (no name required) and dismisses the welcome overlay right away.
+- Place a couple of words, click "Done": confirm a name-prompt overlay appears (not an immediate screenshot/upload), Submit is disabled until text is entered.
+- Enter a name, click Submit: confirm the board captures, uploads (POST fires), "Submitted — thank you!" shows, then auto-resets back to the (name-field-free) welcome overlay.
+- Playwright pass confirming: no name gate on welcome overlay, Done opens the name prompt instead of uploading immediately, Submit gated on non-empty input, upload fires only after Submit, full reset afterward — zero console errors.
+
+---
+
 # Auto-upload finished word clouds to Google Drive via a "Done" button
 
 ## Context

@@ -11,7 +11,7 @@
     overflow: hidden;
     width: 100%;
     height: 100%;
-    background: #0c0f14;
+    background: #2e2e2e;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     color: #f4f6fa;
   }
@@ -21,7 +21,9 @@
     position: fixed;
     inset: 0;
     z-index: 100;
-    background: rgba(8, 10, 14, 0.96);
+    background-color: #f5f3ee;
+    background-image: radial-gradient(rgba(0, 0, 0, 0.1) 1.5px, transparent 1.6px);
+    background-size: 40px 40px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -31,22 +33,22 @@
     display: none;
   }
 
-  #welcome-box {
+  .overlay-box {
     max-width: 560px;
     margin: 24px;
     padding: 32px 36px;
-    background: #1a1f2b;
-    border: 1px solid #3a4356;
+    background: #2b9b92;
+    border: 4px solid #ff6b6b;
     border-radius: 10px;
     text-align: center;
   }
 
-  #welcome-box h1 {
+  .overlay-box h1 {
     margin: 0 0 16px;
     font-size: 24px;
   }
 
-  #welcome-box p {
+  .overlay-box p {
     color: #c4cbdb;
     line-height: 1.5;
     margin: 0 0 24px;
@@ -54,12 +56,22 @@
     white-space: pre-line;
   }
 
+  #welcome-overlay .overlay-box,
+  #welcome-overlay .overlay-box h1,
+  #welcome-overlay .overlay-box p,
+  #submitted-overlay .overlay-box,
+  #submitted-overlay .overlay-box h1,
+  #submitted-overlay .overlay-box p {
+    color: black;
+  }
+
   #welcome-enter-btn {
     padding: 10px 28px;
     font-size: 15px;
   }
 
-  #welcome-enter-btn:disabled {
+  #welcome-enter-btn:disabled,
+  #name-submit-btn:disabled {
     opacity: 0.45;
     cursor: not-allowed;
   }
@@ -77,12 +89,31 @@
     border-radius: 6px;
   }
 
+  /* --- Name-prompt overlay (reuses welcome-overlay layout) --- */
+  #name-prompt-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    background-color: #f5f3ee;
+    background-image: radial-gradient(rgba(0, 0, 0, 0.1) 1.5px, transparent 1.6px);
+    background-size: 40px 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  #name-prompt-overlay.hidden {
+    display: none;
+  }
+
   /* --- Submitted confirmation overlay (reuses welcome-overlay layout) --- */
   #submitted-overlay {
     position: fixed;
     inset: 0;
     z-index: 100;
-    background: rgba(8, 10, 14, 0.96);
+    background-color: #f5f3ee;
+    background-image: radial-gradient(rgba(0, 0, 0, 0.1) 1.5px, transparent 1.6px);
+    background-size: 40px 40px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -108,7 +139,9 @@
     flex-direction: column;
     gap: 10px;
     align-items: center;
-    background: #12151d;
+    background-color: #f5f3ee;
+    background-image: radial-gradient(rgba(0, 0, 0, 0.1) 1.5px, transparent 1.6px);
+    background-size: 40px 40px;
     border-right: 1px solid #262c3a;
   }
 
@@ -116,7 +149,7 @@
     position: relative;
     flex-grow: 1;
     overflow: hidden;
-    background: #0c0f14;
+    background: #474747;
   }
 
   /* Perspective floor backdrop: purely visual, no interaction */
@@ -166,24 +199,27 @@
     display: flex;
     flex-direction: column;
     gap: 12px;
-    background: #12151d;
+    background-color: #f5f3ee;
+    background-image: radial-gradient(rgba(0, 0, 0, 0.1) 1.5px, transparent 1.6px);
+    background-size: 40px 40px;
     border-left: 1px solid #262c3a;
   }
 
   #directions-box {
-    border: 1px solid #3a4356;
+    border: 4px solid #ff6b6b;
     border-radius: 8px;
     padding: 14px 16px;
-    background: #1a1f2b;
+    background: #2b9b92;
     font-size: 13px;
     line-height: 1.5;
-    color: #c4cbdb;
+    color: #000309;
+    font-weight: bold;
     white-space: pre-line;
   }
 
   #directions-box h2 {
     margin: 0 0 8px;
-    font-size: 14px;
+    font-size: 16px;
     color: #f4f6fa;
   }
 
@@ -226,32 +262,42 @@
     padding: 10px 14px;
     border-radius: 6px;
     border: 1px solid #3a4356;
-    background: #2a3140;
-    color: #f4f6fa;
+    background: #bfa20b;
+    color: black;
     font-size: 14px;
     cursor: pointer;
   }
 
   button:hover {
-    background: #384154;
+    background: #a38c09;
   }
 </style>
 </head>
 <body>
 
 <div id="welcome-overlay">
-  <div id="welcome-box">
-    <h1>Build Your Word Cloud</h1>
-    <p>LLMs create word clouds, also known as vector embeddings, where words are tokens and vectors are the distances between tokens in space. Your brain is now the LLM.
+  <div class="overlay-box">
+    <h1>You are now the LLM!!</h1>
+    <p>LLMs create word clouds, also known as vector embeddings, where words are tokens and vectors are the distances between tokens in space.
 
-This tool allows you to create your own word cloud based on your lived experiences, ideas, and viewpoint. Drag words from the left column and place them in spatial relationship to one another &mdash; words closer together have more semantic similarity or contextual likeness, words further apart have less. There is no right location. Each word cloud will be unique to you.</p>
+      Create your own word cloud based on your lived experiences, ideas, and viewpoint.  
+      
+      There is no right location. Each word cloud will be unique to you.</p>
+    <button id="welcome-enter-btn">Get Started!</button>
+  </div>
+</div>
+
+<div id="name-prompt-overlay" class="hidden">
+  <div class="overlay-box">
+    <h1>What's your name?</h1>
+    <p style="text-align:center;">We'll attach it to your word cloud before saving it.</p>
     <input id="participant-name-input" type="text" placeholder="Your name or nickname" autocomplete="off">
-    <button id="welcome-enter-btn" disabled>Enter</button>
+    <button id="name-submit-btn" disabled>Submit</button>
   </div>
 </div>
 
 <div id="submitted-overlay" class="hidden">
-  <div id="welcome-box">
+  <div class="overlay-box">
     <h1>Submitted &mdash; thank you!</h1>
     <p style="text-align:center;">Your word cloud has been saved.</p>
   </div>
@@ -270,11 +316,14 @@ This tool allows you to create your own word cloud based on your lived experienc
 
   <div id="sidebar">
     <div id="directions-box">
-      <h2>Directions</h2>LLMs create word clouds, also known as vector embeddings, where words are tokens and vectors are the distances between tokens in space. Your brain is now the LLM. This tool allows you the user to create your own word cloud based on your lived experiences, ideas, and viewpoint.
+      <h2>Directions</h2> Your brain is now the LLM. Create your own word cloud based on your lived experiences, ideas, and viewpoint.
 
-Drag words from the column on the left and place them in spatial relationship to one another. Words closer together have more semantic similarity or contextual likeness. Words further apart on the screen have less. There is no right location. Remember this is based on your views, ideas, and lived experience. Each word cloud will be unique to each user.
+Drag words from the column on the left and place them in spatial relationship to one another. 
 
-You can double click on each word to create a line between them. This line represents the sentence you are making.</div>
+Words closer together have more semantic similarity or contextual likeness. Words further apart on the screen have less. 
+
+Remember this is based on your views, ideas, and lived experience. Each word cloud will be unique to each user.
+</div>
     <button id="reset-btn">Reset</button>
     <button id="done-btn">Done</button>
   </div>
@@ -302,7 +351,9 @@ You can double click on each word to create a line between them. This line repre
   const doneBtn = document.getElementById('done-btn');
   const welcomeOverlay = document.getElementById('welcome-overlay');
   const welcomeEnterBtn = document.getElementById('welcome-enter-btn');
+  const namePromptOverlay = document.getElementById('name-prompt-overlay');
   const participantNameInput = document.getElementById('participant-name-input');
+  const nameSubmitBtn = document.getElementById('name-submit-btn');
   const submittedOverlay = document.getElementById('submitted-overlay');
 
   let remainingBank = [];
@@ -312,14 +363,12 @@ You can double click on each word to create a line between them. This line repre
   let selectedWord = null;
   let participantName = '';
 
-  participantNameInput.addEventListener('input', () => {
-    welcomeEnterBtn.disabled = participantNameInput.value.trim() === '';
+  welcomeEnterBtn.addEventListener('click', () => {
+    welcomeOverlay.classList.add('hidden');
   });
 
-  welcomeEnterBtn.addEventListener('click', () => {
-    participantName = participantNameInput.value.trim();
-    if (!participantName) return;
-    welcomeOverlay.classList.add('hidden');
+  participantNameInput.addEventListener('input', () => {
+    nameSubmitBtn.disabled = participantNameInput.value.trim() === '';
   });
 
   // --- Word bank rendering ---
@@ -513,11 +562,19 @@ You can double click on each word to create a line between them. This line repre
     });
   }
 
-  // --- Done: upload the finished board to Google Drive ---
+  // --- Done: ask for a name, then upload the finished board to Google Drive ---
   doneBtn.addEventListener('click', () => {
+    namePromptOverlay.classList.remove('hidden');
+  });
+
+  nameSubmitBtn.addEventListener('click', () => {
+    participantName = participantNameInput.value.trim();
+    if (!participantName) return;
+
+    namePromptOverlay.classList.add('hidden');
     doneBtn.disabled = true;
 
-    html2canvas(board, { backgroundColor: '#0c0f14' }).then(canvas => {
+    html2canvas(board, { backgroundColor: '#474747' }).then(canvas => {
       const image = canvas.toDataURL('image/png');
       const timestamp = new Date().toISOString();
 
@@ -544,7 +601,7 @@ You can double click on each word to create a line between them. This line repre
       resetAll();
       participantName = '';
       participantNameInput.value = '';
-      welcomeEnterBtn.disabled = true;
+      nameSubmitBtn.disabled = true;
       doneBtn.disabled = false;
       welcomeOverlay.classList.remove('hidden');
     }, 4000);
